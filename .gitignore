@@ -1,0 +1,7 @@
+# Ignore the Python virtual environment sandbox
+backend/venv/
+__pycache__/
+*.pyc
+
+# Ignore all user-uploaded videos, audio, and captions
+backend/temp_storage/
