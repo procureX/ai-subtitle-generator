@@ -51,7 +51,7 @@ export default function VideoUpload({ onFileUpload, uploadProgress }) {
         <span style={{ fontSize: '16px', fontWeight: 'bold' }}>
           {isDragging ? "Drop your file here!" : "Drag & Drop Video or Browse"}
         </span>
-        <span style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>Supports .mp4 or .webm clips</span>
+        <span style={{ color: '#64748b', fontSize: '14px', marginTop: '4px' }}>Supports .mp4 clips</span>
         <input type="file" accept="video/mp4,video/webm" onChange={onFileUpload} style={{ display: 'none' }} />
       </label>
 

@@ -71,9 +71,9 @@ async def upload_video(file: UploadFile = File(...)):
     and runs FFmpeg to extract high-quality audio in seconds without triggering AI.
     """
     # Strict validation check on file extensions
-    ALLOWED_EXTENSIONS = (".mp4", ".webm")
+    ALLOWED_EXTENSIONS = (".mp4")
     if not file.filename.lower().endswith(ALLOWED_EXTENSIONS):
-        raise HTTPException(status_code=400, detail="Only .mp4 and .webm video files are supported!")
+        raise HTTPException(status_code=400, detail="Only .mp4 video files are supported!")
 
     # Establish full system file paths
     video_path = os.path.join(UPLOAD_DIR, file.filename)
