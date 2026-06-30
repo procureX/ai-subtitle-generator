@@ -19,13 +19,17 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [aiGenerated, setAiGenerated] = useState(false);
 
-  // Core Percentage States
+  // Distinct Persistent Percentage Bars States
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [ffmpegProgress, setFfmpegProgress] = useState(0);
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  // AI Script States
   const [aiProgress, setAiProgress] = useState(0);
   const [aiStage, setAiStage] = useState('');
-  const [isAiLoading, setIsAiLoading] = useState(false); // Dedicated state for AI progress block
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Step 1: Upload video file
+  // Flow Step 1: Sequential Upload and Progressive Extraction
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -33,74 +37,81 @@ export default function App() {
     setVideoFile(file);
     setVideoUrl(URL.createObjectURL(file));
     setLoading(true);
-    setAiGenerated(false);
-    setUploadProgress(1); // Force bar to appear immediately
-    setMessage('Initiating upload stream...');
+    setUploadProgress(1);
+    setFfmpegProgress(0);
+    setIsExtracting(false);
+    setMessage('Uploading media payload to core storage...');
 
     const formData = new FormData();
     formData.append('file', file);
 
     try {
+      // A. Run file stream to disk destination
       const response = await axios.post(`${API_BASE}/upload`, formData, {
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          // Keep it at 99% until backend completely responds to show it's extracting audio
-          setUploadProgress(percentCompleted < 100 ? percentCompleted : 99);
+          setUploadProgress(percentCompleted);
         }
       });
-      
-      setUploadProgress(100); // Successfully completed everything
+
+      const savedFilename = response.data.filename;
       setBaseFilename(response.data.base_filename);
-      setMessage('Video staged successfully! Configure target language choices below.');
+      setIsExtracting(true);
+      setMessage('Network transmission complete. Beginning hardware FFmpeg transcode processing loop...');
+
+      // B. Connect SSE Connection to read backend live calculations output
+      const eventSource = new EventSource(`${API_BASE}/extract-audio-progress/${savedFilename}`);
+      
+      eventSource.onmessage = (event) => {
+        const progress = parseInt(event.data, 10);
+        setFfmpegProgress(progress);
+        
+        if (progress >= 100) {
+          eventSource.close();
+          setIsExtracting(false);
+          setLoading(false);
+          setMessage('Audio processing complete! Select a workspace target language below.');
+        }
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        setIsExtracting(false);
+        setLoading(false);
+        setMessage('Error occurred mapping sub-process progress loops.');
+      };
+
     } catch (err) {
-      setUploadProgress(0);
-      setMessage(`System upload failure: ${err.response?.data?.detail || err.message}`);
-    } finally {
+      setMessage(`System processing failure: ${err.message}`);
       setLoading(false);
     }
   };
 
-  // Step 2: Run AI Generation Loop
   const handleStartAIEngine = async (targetLang) => {
-    setIsAiLoading(true); // Open the AI progress bar block instantly
+    setIsAiLoading(true);
     setAiProgress(5);
     setAiStage('Booting translation blocks and loading system audio...');
     setMessage('Processing your request...');
 
-    // Smooth progress simulation intervals matching application execution thresholds
     const interval = setInterval(() => {
       setAiProgress((prev) => {
-        if (prev < 45) {
-          setAiStage('Running faster-whisper neural processing transcription checks...');
-          return prev + 3;
-        }
-        if (prev >= 45 && prev < 85) {
-          setAiStage(targetLang === 'en' ? 'Refining timestamps and formatting timeline blocks...' : `Translating baseline elements into target language context [${targetLang}]...`);
-          return prev + 2;
-        }
-        if (prev >= 85 && prev < 98) {
-          setAiStage('Writing output .srt structures smoothly to localized disk storage...');
-          return prev + 1;
-        }
+        if (prev < 45) return prev + 3;
+        if (prev >= 45 && prev < 85) return prev + 2;
+        if (prev >= 85 && prev < 98) return prev + 1;
         return prev;
       });
     }, 400);
 
     try {
       await axios.post(`${API_BASE}/generate/${baseFilename}`, { lang: targetLang });
-      
       clearInterval(interval);
       setAiProgress(100);
-      setAiStage('Processing complete!');
       setAiGenerated(true);
-      setMessage(`AI successfully processed and saved your ${targetLang.toUpperCase()} workspace tracks!`);
-      
+      setMessage('Captions generated successfully!');
       fetchCaptions(baseFilename, targetLang);
     } catch (err) {
       clearInterval(interval);
-      setAiProgress(0);
-      setAiStage('');
-      setMessage(`AI Engine Error: ${err.response?.data?.detail || err.message}`);
+      setMessage(`AI Engine Error: ${err.message}`);
     } finally {
       setIsAiLoading(false);
     }
@@ -112,39 +123,20 @@ export default function App() {
       setCaptionLines(response.data.captions);
       setCurrentLang(lang);
     } catch (err) {
-      setMessage('Error fetching requested workspace timeline objects.');
-    }
-  };
-
-  const handleTextChange = (index, newText) => {
-    const updated = [...captionLines];
-    updated[index].text = newText;
-    setCaptionLines(updated);
-  };
-
-  const saveCaptionEdits = async () => {
-    if (!baseFilename) return;
-    try {
-      setMessage('Committing changes safely to file system...');
-      const response = await axios.put(`${API_BASE}/captions/${baseFilename}/${currentLang}`, {
-        captions: captionLines
-      });
-      setMessage(response.data.message);
-    } catch (err) {
-      setMessage('Error updating disk entities.');
+      setMessage('Error fetching timelines.');
     }
   };
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', background: '#090d16', color: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
       <header style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px', marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '26px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', letterSpacing: '-0.5px' }}>
-          <Sparkles color="#38bdf8" fill="#38bdf8" size={24} /> AI Subtitle Generator
+        <h1 style={{ margin: 0, fontSize: '26px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
+          <Sparkles color="#38bdf8" fill="#38bdf8" size={24} /> AI Subtitle Studio
         </h1>
       </header>
 
       {message && (
-        <div style={{ background: '#111827', borderLeft: '4px solid #38bdf8', padding: '14px', borderRadius: '4px', marginBottom: '16px', fontSize: '15px' }}>
+        <div style={{ background: '#111827', borderLeft: '4px solid #38bdf8', padding: '14px', borderRadius: '4px', marginBottom: '16px' }}>
           {message}
         </div>
       )}
@@ -158,20 +150,37 @@ export default function App() {
             <>
               <VideoPlayer videoUrl={videoUrl} videoName={videoFile?.name} />
               
-              {/* Show file upload feedback bar under player if it is still cooking */}
-              {uploadProgress > 0 && uploadProgress < 100 && (
-                <div style={{ background: '#1e293b', padding: '12px', borderRadius: '6px' }}>
+              {/* 📊 BAR 1: Persistent Network Upload */}
+              {uploadProgress > 0 && (
+                <div style={{ background: '#1e293b', padding: '14px', borderRadius: '6px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
-                    <span>Extracting audio frequencies via FFmpeg...</span>
-                    <span style={{ fontWeight: 'bold', color: '#38bdf8' }}>{uploadProgress}%</span>
+                    <span>1. File Upload Status</span>
+                    <span style={{ fontWeight: 'bold', color: uploadProgress === 100 ? '#22c55e' : '#38bdf8' }}>
+                      {uploadProgress === 100 ? "Uploaded 100%" : `${uploadProgress}%`}
+                    </span>
                   </div>
                   <div style={{ width: '100%', background: '#334155', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
-                    <div style={{ width: `${uploadProgress}%`, background: '#38bdf8', height: '100%' }} />
+                    <div style={{ width: `${uploadProgress}%`, background: uploadProgress === 100 ? '#22c55e' : '#38bdf8', height: '100%' }} />
                   </div>
                 </div>
               )}
 
-              {!aiGenerated && (
+              {/* 📊 BAR 2: Independent Dynamic FFmpeg Extraction Progress */}
+              {(isExtracting || ffmpegProgress > 0) && (
+                <div style={{ background: '#1e293b', padding: '14px', borderRadius: '6px', marginTop: '-4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>
+                    <span>2. FFmpeg Audio Extraction</span>
+                    <span style={{ fontWeight: 'bold', color: ffmpegProgress === 100 ? '#22c55e' : '#a855f7' }}>
+                      {ffmpegProgress}%
+                    </span>
+                  </div>
+                  <div style={{ width: '100%', background: '#334155', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ width: `${ffmpegProgress}%`, background: ffmpegProgress === 100 ? '#22c55e' : '#a855f7', height: '100%', transition: 'width 0.3s ease-out' }} />
+                  </div>
+                </div>
+              )}
+
+              {!aiGenerated && !isExtracting && !loading && (
                 <LanguageSelector 
                   onStartAI={handleStartAIEngine} 
                   loading={isAiLoading} 

@@ -1,191 +1,150 @@
 import os
 import subprocess
+import re
+import json
 import datetime
 from typing import List
 import srt
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# Import custom processing functions from local modules
-from transcribe import generate_subtitles
-from translator import translate_srt_file
-
-# Initialize the core FastAPI application instance
 app = FastAPI()
 
-# -----------------------------------------------------------------------------
-# CROSS-ORIGIN RESOURCE SHARING (CORS) MIDDLEWARE CONFIGURATION
-# -----------------------------------------------------------------------------
-# Explicitly permit traffic from the local React/Vite development server.
-# This prevents browsers from blocking frontend requests arriving from port 5173.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all standard methods: GET, POST, PUT, DELETE
-    allow_headers=["*"],  # Allows all incoming metadata headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Define the local directory mapping where raw files are temporarily stored
 UPLOAD_DIR = "temp_storage"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
-# -----------------------------------------------------------------------------
-# PYDANTIC DATA STRUCTS / SCHEMAS FOR VALIDATION
-# -----------------------------------------------------------------------------
-
-# Represents a single caption object mapped to the exact .srt segment array structure
 class CaptionLine(BaseModel):
     index: int
-    start: str  # Expected string format from srt parser: "00:00:00,000"
-    end: str    # Expected string format from srt parser: "00:00:00,000"
+    start: str
+    end: str
     text: str
 
-# Handles inbound array validation payload for saving edited timelines
 class UpdateCaptionRequest(BaseModel):
     captions: List[CaptionLine]
 
-# Handles inbound string validation targeting an individual language selection
 class GenerateRequest(BaseModel):
     lang: str
 
+def get_video_duration(video_path):
+    """Uses ffprobe to get the exact total duration of the video in seconds."""
+    cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nocey=1", video_path]
+    # Fallback to avoid key flags issues in older ffprobe variations
+    cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", video_path]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    try:
+        return float(result.stdout.strip())
+    except ValueError:
+        return 0.0
 
-# -----------------------------------------------------------------------------
-# API ENDPOINTS / ROUTING LOGIC
-# -----------------------------------------------------------------------------
+def stream_ffmpeg_extraction(video_path, audio_path, total_duration):
+    """Runs FFmpeg and yields progress percentages periodically as chunks compile."""
+    if total_duration == 0:
+        yield "data: 100\n\n"
+        return
 
-@app.get("/")
-def read_root():
-    """
-    Basic sanity check endpoint to verify backend health.
-    """
-    return {"message": "Hello! The Caption Generator backend is running successfully on Ubuntu!"}
-
+    # Command outputs periodic progress stats to stdout/stderr
+    cmd = [
+        "ffmpeg", "-i", video_path, "-q:a", "0", "-map", "a", 
+        "-progress", "pipe:1", "-y", audio_path
+    ]
+    
+    process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    
+    while True:
+        line = process.stdout.readline()
+        if not line:
+            break
+        
+        # Look for out_time_ms=xxxxxxxx from FFmpeg's progress pipe stream
+        if "out_time_ms=" in line:
+            try:
+                time_ms = float(line.split("=")[1].strip())
+                current_seconds = time_ms / 1000000.0
+                percentage = min(int((current_seconds / total_duration) * 100), 100)
+                yield f"data: {percentage}\n\n"
+            except Exception:
+                pass
+                
+    process.communicate()
+    yield "data: 100\n\n"
 
 @app.post("/upload")
 async def upload_video(file: UploadFile = File(...)):
-    """
-    Step 1: File Storage & Quick Audio Extraction
-    Receives an incoming video stream chunk, writes it to the local temp disk,
-    and runs FFmpeg to extract high-quality audio in seconds without triggering AI.
-    """
-    # Strict validation check on file extensions
-    ALLOWED_EXTENSIONS = (".mp4")
+    """Handles raw saving of file stream to disk."""
+    ALLOWED_EXTENSIONS = (".mp4", ".webm")
     if not file.filename.lower().endswith(ALLOWED_EXTENSIONS):
-        raise HTTPException(status_code=400, detail="Only .mp4 video files are supported!")
+        raise HTTPException(status_code=400, detail="Only .mp4 and .webm video files are supported!")
 
-    # Establish full system file paths
     video_path = os.path.join(UPLOAD_DIR, file.filename)
+    with open(video_path, "wb") as buffer:
+        while chunk := await file.read(1024 * 1024):  
+            buffer.write(chunk)
+
     base_filename, _ = os.path.splitext(file.filename)
+    return {"base_filename": base_filename, "filename": file.filename}
+
+@app.get("/extract-audio-progress/{filename}")
+def extract_audio_progress(filename: str):
+    """Server-Sent Events (SSE) endpoint tracking the real FFmpeg extraction progress loop."""
+    video_path = os.path.join(UPLOAD_DIR, filename)
+    base_filename, _ = os.path.splitext(filename)
     audio_path = os.path.join(UPLOAD_DIR, f"{base_filename}.mp3")
-
-    try:
-        # Stream file bytes sequentially into storage to guard system memory
-        with open(video_path, "wb") as buffer:
-            while chunk := await file.read(1024 * 1024):  
-                buffer.write(chunk)
-
-        # Run decoupled subprocess executing FFmpeg to rip audio cleanly
-        # -q:a 0 sets VBR high-quality audio map
-        ffmpeg_command = [
-            "ffmpeg", "-i", video_path, "-q:a", "0", "-map", "a", audio_path, "-y"
-        ]
-        subprocess.run(ffmpeg_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-        # Return metadata instantly so frontend can configure the next step
-        return {
-            "message": "Video uploaded and audio prepped successfully!",
-            "base_filename": base_filename
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload processing failed: {str(e)}")
-
+    
+    if not os.path.exists(video_path):
+        raise HTTPException(status_code=404, detail="Video missing.")
+        
+    duration = get_video_duration(video_path)
+    return StreamingResponse(stream_ffmpeg_extraction(video_path, audio_path, duration), media_type="text/event-stream")
 
 @app.post("/generate/{filename}")
 def generate_captions_for_language(filename: str, data: GenerateRequest):
-    """
-    Step 2: On-Demand AI Transcription & Targeted Translation
-    Triggered when a user selects their language preference and clicks 'Generate'.
-    """
+    from transcribe import generate_subtitles
+    from translator import translate_srt_file
+
     audio_path = os.path.join(UPLOAD_DIR, f"{filename}.mp3")
     english_srt = os.path.join(UPLOAD_DIR, f"{filename}_en.srt")
     target_srt = os.path.join(UPLOAD_DIR, f"{filename}_{data.lang}.srt")
 
-    # Confirm requirements exist before proceeding to load heavy AI libraries
     if not os.path.exists(audio_path):
-        raise HTTPException(status_code=404, detail="Audio file missing. Upload video first.")
+        raise HTTPException(status_code=404, detail="Audio track not prepared yet.")
 
     try:
-        # A. Core English Baseline: Always ensure base English text exists on disk
         if not os.path.exists(english_srt):
             generate_subtitles(audio_path, english_srt)
-
-        # B. Conditional Translation Layer: Only run if target selection is not English
         if data.lang != "en":
             translate_srt_file(english_srt_path=english_srt, target_language=data.lang, output_srt_path=target_srt)
-
-        return {"message": f"Successfully generated {data.lang} captions!", "lang": data.lang}
+        return {"message": "Success"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI processing failed: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/captions/{filename}/{lang}")
 def get_captions(filename: str, lang: str):
-    """
-    Workspace View Layer: Reads raw text file from disk, parses block schemas,
-    and returns an ordered JSON array to populate the interactive React editor UI rows.
-    """
     srt_path = os.path.join(UPLOAD_DIR, f"{filename}_{lang}.srt")
-    
     if not os.path.exists(srt_path):
-        raise HTTPException(status_code=404, detail="Subtitle file not found.")
-        
+        raise HTTPException(status_code=404, detail="Subtitles missing.")
     with open(srt_path, "r", encoding="utf-8") as f:
         content = f.read()
-        
-    # Standard subtitle string parser execution
     subtitles = list(srt.parse(content))
-    formatted_captions = []
-    
-    # Restructure objects into crisp, valid dictionary entities for JSON transport
-    for sub in subtitles:
-        formatted_captions.append({
-            "index": sub.index,
-            "start": str(sub.start),
-            "end": str(sub.end),
-            "text": sub.content
-        })
-        
-    return {"filename": filename, "language": lang, "captions": formatted_captions}
-
+    return {"captions": [{"index": s.index, "start": str(s.start), "end": str(s.end), "text": s.content} for s in subtitles]}
 
 @app.put("/captions/{filename}/{lang}")
 def update_captions(filename: str, lang: str, data: UpdateCaptionRequest):
-    """
-    Workspace Save Layer: Accepts full modified collection lists from React state,
-    parses standard string representations back into Python delta-time objects,
-    and formats them to overwrite files cleanly on the Ubuntu local drive.
-    """
     srt_path = os.path.join(UPLOAD_DIR, f"{filename}_{lang}.srt")
-    
-    subtitle_blocks = []
+    blocks = []
     for line in data.captions:
-        # Deconstruct timestamp strings back to individual float values
         h_s, m_s, s_s = map(float, line.start.split(':'))
         h_e, m_e, s_e = map(float, line.end.split(':'))
-        
-        # Build strict instances conforming back to internal SRT formatting libraries
-        sub = srt.Subtitle(
-            index=line.index,
-            start=datetime.timedelta(hours=h_s, minutes=m_s, seconds=s_s),
-            end=datetime.timedelta(hours=h_e, minutes=m_e, seconds=s_e),
-            content=line.text
-        )
-        subtitle_blocks.append(sub)
-        
-    # Re-compose raw objects structure down to structured strings and save
+        blocks.append(srt.Subtitle(index=line.index, start=datetime.timedelta(hours=h_s, minutes=m_s, seconds=s_s), end=datetime.timedelta(hours=h_e, minutes=m_e, seconds=s_e), content=line.text))
     with open(srt_path, "w", encoding="utf-8") as f:
-        f.write(srt.compose(subtitle_blocks))
-        
-    return {"message": f"Successfully updated and regenerated {lang} subtitles!"}
+        f.write(srt.compose(blocks))
+    return {"message": "Successfully updated!"}
