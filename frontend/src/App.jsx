@@ -49,7 +49,7 @@ export default function App() {
       {/* 🎬 HEADER BRANDING BLOCK */}
       <header style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px', marginBottom: '24px' }}>
         <h1 style={{ margin: 0, fontSize: '26px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
-          <Sparkles color="#38bdf8" fill="#38bdf8" size={24} /> AI Subtitle Studio
+          <Sparkles color="#38bdf8" fill="#38bdf8" size={24} /> AI Subtitle Generator
         </h1>
       </header>
 
