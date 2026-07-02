@@ -39,6 +39,7 @@ export default function App() {
     switchLanguage,
     handleTextChange,
     saveCaptionEdits,
+    downloadSrt,
     startBurnIn
   } = useVideoWorkspace();
 
@@ -132,6 +133,7 @@ export default function App() {
               captionLines={captionLines}
               onTextChange={handleTextChange}
               isSwitching={isAiLoading}
+              onDownloadSrt={downloadSrt}
               onStartBurnIn={startBurnIn}
               isBurning={isBurning}
               burnInProgress={burnInProgress}

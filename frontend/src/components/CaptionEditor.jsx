@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Globe, Save, Edit3, ChevronDown, ChevronUp, ListVideo, Flame, Download, Loader } from 'lucide-react';
+import { Globe, Save, Edit3, ChevronDown, ChevronUp, ListVideo, Flame, Download, Loader, FileDown } from 'lucide-react';
 import { LANGUAGES } from '../constants/languages';
 
 export default function CaptionEditor({
@@ -9,6 +9,7 @@ export default function CaptionEditor({
   captionLines,
   onTextChange,
   isSwitching,
+  onDownloadSrt,
   onStartBurnIn,
   isBurning,
   burnInProgress,
@@ -33,9 +34,14 @@ export default function CaptionEditor({
           </select>
         </div>
 
-        <button onClick={onSave} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0284c7', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-          <Save size={16} /> Save Timeline Edits
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={onDownloadSrt}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #475569', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+          >
+            <FileDown size={14} /> Download .srt
+          </button>
+        </div>
       </div>
 
       {/* Burn-in Captions section */}
@@ -85,33 +91,41 @@ export default function CaptionEditor({
       </div>
 
       {/* Collapsible toggle - caption list stays hidden until the user opens this */}
-      <button
-        onClick={() => setIsTimelineOpen((prev) => !prev)}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          background: '#0f172a',
-          border: '1px solid #334155',
-          borderRadius: '6px',
-          padding: '12px 14px',
-          color: '#f1f5f9',
-          cursor: 'pointer',
-          fontSize: '14px',
-          fontWeight: '600',
-          marginBottom: isTimelineOpen ? '12px' : '0',
-        }}
-      >
-        <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <ListVideo size={16} color="#38bdf8" />
-          Caption Timeline ({captionLines.length} lines)
-        </span>
-        {isTimelineOpen ? <ChevronUp size={18} color="#94a3b8" /> : <ChevronDown size={18} color="#94a3b8" />}
-      </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <button
+          onClick={() => setIsTimelineOpen((prev) => !prev)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flex: 1,
+            background: '#0f172a',
+            border: '1px solid #334155',
+            borderRadius: '6px',
+            padding: '12px 14px',
+            color: '#f1f5f9',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: '600',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ListVideo size={16} color="#38bdf8" />
+            Caption Timeline ({captionLines.length} lines)
+          </span>
+          {isTimelineOpen ? <ChevronUp size={18} color="#94a3b8" /> : <ChevronDown size={18} color="#94a3b8" />}
+        </button>
+
+        <button
+          onClick={onSave}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#0284c7', color: '#fff', border: 'none', padding: '12px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px', whiteSpace: 'nowrap' }}
+        >
+          <Save size={16} /> Save Timeline Edits
+        </button>
+      </div>
 
       {isTimelineOpen && (
-        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '12px', paddingRight: '4px', marginTop: '12px' }}>
           {captionLines.map((line, index) => (
             <div key={line.index} style={{ background: '#0f172a', borderRadius: '6px', padding: '12px', border: '1px solid #334155' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '12px', marginBottom: '6px' }}>

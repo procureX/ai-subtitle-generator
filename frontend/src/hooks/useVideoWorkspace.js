@@ -239,7 +239,18 @@ export default function useVideoWorkspace() {
     }
   };
 
-  // 6. Burn the current language's captions directly into the video via ffmpeg,
+  // 6. Trigger a browser download of the current language's generated .srt file
+  const downloadSrt = () => {
+    if (!baseFilename || !currentLang) return;
+    const url = `http://localhost:8000/captions/${encodeURIComponent(baseFilename)}/${encodeURIComponent(currentLang)}/download`;
+    const link = document.createElement('a');
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // 7. Burn the current language's captions directly into the video via ffmpeg,
   // streaming progress over SSE, then exposing a download link for the result.
   const startBurnIn = async () => {
     if (!baseFilename || !currentLang) return;
@@ -332,6 +343,7 @@ export default function useVideoWorkspace() {
     switchLanguage,
     handleTextChange,
     saveCaptionEdits,
+    downloadSrt,
     startBurnIn
   };
 }

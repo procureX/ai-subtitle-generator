@@ -4,11 +4,12 @@ import re
 import json
 import datetime
 import time
+import urllib.parse
 from typing import List
 import srt
 from fastapi import FastAPI, UploadFile, File, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, Response
 from pydantic import BaseModel
 
 app = FastAPI()
@@ -212,6 +213,24 @@ def get_captions(filename: str, lang: str):
         content = f.read()
     subtitles = list(srt.parse(content))
     return {"captions": [{"index": s.index, "start": str(s.start), "end": str(s.end), "text": s.content} for s in subtitles]}
+
+@app.get("/captions/{filename}/{lang}/download")
+def download_captions(filename: str, lang: str):
+    """Serves the generated .srt file as a downloadable attachment."""
+    srt_path = os.path.join(UPLOAD_DIR, f"{filename}_{lang}.srt")
+    if not os.path.exists(srt_path):
+        raise HTTPException(status_code=404, detail="Subtitles missing.")
+
+    with open(srt_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    download_name = f"{filename}_{lang}.srt"
+    # RFC 5987 encoding so filenames with spaces/unicode download correctly across browsers
+    quoted_name = urllib.parse.quote(download_name)
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{download_name}\"; filename*=UTF-8''{quoted_name}"
+    }
+    return Response(content=content, media_type="application/x-subrip", headers=headers)
 
 @app.put("/captions/{filename}/{lang}")
 def update_captions(filename: str, lang: str, data: UpdateCaptionRequest):
