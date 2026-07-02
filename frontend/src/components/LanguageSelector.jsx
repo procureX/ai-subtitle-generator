@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Cpu, Globe } from 'lucide-react';
+import { LANGUAGES } from '../constants/languages';
 
 export default function LanguageSelector({ onStartAI, loading, aiProgress, aiStage }) {
   const [selectedLang, setSelectedLang] = useState('en');
@@ -19,8 +20,9 @@ export default function LanguageSelector({ onStartAI, loading, aiProgress, aiSta
           style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '4px', cursor: 'pointer', fontSize: '15px' }}
         >
           <option value="en">English (Original)</option>
-          <option value="es">Spanish (Español)</option>
-          <option value="ur">Urdu (اردو)</option>
+          {LANGUAGES.filter((l) => l.code !== 'en').map((l) => (
+            <option key={l.code} value={l.code}>{l.label}</option>
+          ))}
         </select>
       </div>
 

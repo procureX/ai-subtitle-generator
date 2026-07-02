@@ -1,5 +1,6 @@
 import React from 'react';
 import { Globe, Save, Edit3 } from 'lucide-react';
+import { LANGUAGES } from '../constants/languages';
 
 export default function CaptionEditor({ currentLang, onLangChange, onSave, captionLines, onTextChange, isSwitching }) {
   return (
@@ -8,9 +9,9 @@ export default function CaptionEditor({ currentLang, onLangChange, onSave, capti
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Globe size={18} color="#38bdf8" />
           <select value={currentLang} onChange={(e) => onLangChange(e.target.value)} disabled={isSwitching} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '6px 12px', borderRadius: '4px', cursor: isSwitching ? 'not-allowed' : 'pointer' }}>
-            <option value="en">English (Original)</option>
-            <option value="es">Spanish (Español)</option>
-            <option value="ur">Urdu (اردو)</option>
+            {LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
           </select>
         </div>
 
