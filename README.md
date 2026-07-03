@@ -7,7 +7,7 @@ A full-stack video captioning pipeline that transcribes speech locally with Whis
 
 ## 📺 System Demonstration
 
-[ai-subtitle-generator-demo.webm](./assets/ai-subtitle-generator-demo.webm)
+Demo video is too big to be shown in the README. Demo video is available here: ./assets/ai-subtitle-generator-demo.webm
 
 ## 🏗️ Architecture & Core Concepts
 
