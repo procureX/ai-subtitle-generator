@@ -4,6 +4,7 @@ import re
 import json
 import datetime
 import time
+import threading
 import urllib.parse
 from typing import List
 import srt
@@ -276,6 +277,20 @@ def burn_in_captions(filename: str, lang: str):
             ]
             process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
+            # ffmpeg writes a lot of diagnostic output to stderr while encoding.
+            # If nothing reads it, the OS pipe buffer fills up and ffmpeg blocks
+            # on write() indefinitely — the process looks "stuck" but is actually
+            # deadlocked. Drain it continuously on a background thread instead of
+            # only reading it after the process exits.
+            stderr_lines = []
+
+            def _drain_stderr():
+                for line in process.stderr:
+                    stderr_lines.append(line)
+
+            stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+            stderr_thread.start()
+
             while True:
                 line = process.stdout.readline()
                 if not line:
@@ -290,8 +305,10 @@ def burn_in_captions(filename: str, lang: str):
                         pass
 
             return_code = process.wait()
+            stderr_thread.join(timeout=5)
+
             if return_code != 0:
-                stderr_output = process.stderr.read() if process.stderr else ""
+                stderr_output = "".join(stderr_lines)
                 raise RuntimeError(f"ffmpeg exited with code {return_code}: {stderr_output[-500:]}")
 
             output_filename = os.path.basename(output_path)
