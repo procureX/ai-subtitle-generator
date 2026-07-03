@@ -2,7 +2,8 @@
 
 A full-stack video captioning pipeline that transcribes speech locally with Whisper, translates it into multiple languages, and lets you edit, export, or permanently burn the captions into the video — all with live progress streamed from the backend in real time.
 
-![AI Subtitle Generator Interface](./assets/app-ui.png)
+![AI Subtitle Generator Interface](./assets/app-ui-1.png)
+![AI Subtitle Generator Interface](./assets/app-ui-2.png)
 
 ## 📺 System Demonstration
 
