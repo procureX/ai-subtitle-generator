@@ -49,3 +49,25 @@ def generate_subtitles(audio_path: str, output_srt_path: str, segments=None):
         f.write(srt.compose(subtitle_blocks))
 
     print(f"🎉 Subtitles successfully generated at: {output_srt_path}")
+
+def transcribe_stream(audio_path: str, output_srt_path: str, total_duration: float):
+    """
+    Transcribes audio_path with Whisper, yielding incremental progress
+    percentages (0-100) as segments are produced, then writes the resulting
+    .srt to output_srt_path once transcription completes.
+
+    This exists so the SSE route in main.py doesn't need to know anything
+    about Whisper's segment objects or progress math — it just iterates this
+    generator and forwards each percentage to the client.
+    """
+    model = get_model()
+    print("🎙️ Transcribing audio track...")
+    segments, info = model.transcribe(audio_path, beam_size=5, language="en")
+
+    collected_segments = []
+    for segment in segments:
+        collected_segments.append(segment)
+        pct = min(int((segment.end / total_duration) * 100), 100) if total_duration else 0
+        yield pct
+
+    generate_subtitles(audio_path, output_srt_path, segments=collected_segments)

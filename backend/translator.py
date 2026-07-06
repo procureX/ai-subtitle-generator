@@ -1,7 +1,7 @@
 import os
-import srt
 import re
 import time
+import srt
 from deep_translator import GoogleTranslator
 
 # Reuse one GoogleTranslator instance per target language instead of
@@ -18,7 +18,8 @@ def translate_text_mock(text: str, target_lang: str) -> str:
     Translates a single subtitle line into `target_lang` using Google Translate
     via the free deep-translator library (no API key required).
 
-    Name kept as `translate_text_mock` so main.py doesn't need to change its import.
+    Name kept as `translate_text_mock` for historical reasons — it does a
+    real translation, not a mock.
     """
     cleaned_text = text.strip()
     if not cleaned_text:
@@ -36,49 +37,44 @@ def translate_text_mock(text: str, target_lang: str) -> str:
         print(f"⚠️ Translation failed for '{cleaned_text[:50]}...': {e}")
         return cleaned_text
 
-def translate_srt_file(english_srt_path: str, target_language: str, output_srt_path: str, on_progress=None):
+def translate_srt_stream(english_srt_path: str, target_language: str, output_srt_path: str):
     """
-    Parses an SRT file and translates it line-by-line while calculating 
-    precise progress percentages for the frontend stream.
+    Parses an SRT file, translates every line into target_language, and
+    yields incremental progress percentages (0-100) as it goes. Writes the
+    translated .srt to output_srt_path when done — including the zero-line
+    edge case, which just writes an empty file.
+
+    This replaces the previous callback-based translate_srt_file(), which
+    required main.py to keep its own separate, nearly-identical inline loop
+    just to get per-line progress into an SSE stream. A generator lets the
+    route simply do `for pct in translate_srt_stream(...): yield ...`
+    instead of duplicating this logic.
     """
     if not os.path.exists(english_srt_path):
         raise FileNotFoundError(f"Source SRT block missing at: {english_srt_path}")
 
-    # Read the original source file
     with open(english_srt_path, "r", encoding="utf-8") as f:
         content = f.read()
-    
-    # Parse SRT blocks
+
     subtitles = list(srt.parse(content))
     total_lines = len(subtitles)
 
     if total_lines == 0:
-        if on_progress:
-            on_progress(100)
         with open(output_srt_path, "w", encoding="utf-8") as f:
             f.write("")
+        yield 100
         return
 
     translated_subtitles = []
-
-    # Process and translate each line
     for index, subtitle in enumerate(subtitles):
         translated_text = translate_text_mock(subtitle.content, target_language)
-        
         translated_subtitles.append(srt.Subtitle(
             index=subtitle.index,
             start=subtitle.start,
             end=subtitle.end,
             content=translated_text
         ))
+        yield min(int(((index + 1) / total_lines) * 100), 100)
 
-        # Real-time progress callback
-        if on_progress:
-            current_percentage = min(int(((index + 1) / total_lines) * 100), 100)
-            on_progress(current_percentage)
-
-    # Use utf-8-sig to include the Byte Order Mark (BOM).
-    # This forces subtitle players and editors to treat the Urdu text 
-    # correctly as UTF-8, preventing rendering glitches.
-    with open(output_srt_path, "w", encoding="utf-8-sig") as f:
+    with open(output_srt_path, "w", encoding="utf-8") as f:
         f.write(srt.compose(translated_subtitles))
