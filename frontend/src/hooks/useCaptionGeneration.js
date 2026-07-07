@@ -29,7 +29,7 @@ export default function useCaptionGeneration({ baseFilename, setCurrentLang, set
 
     setIsAiLoading(true);
     setCurrentLang(targetLanguage);
-    setTranscribeProgress(1);
+    setTranscribeProgress(0);
     setTranslateProgress(0);
     setMessage('Connecting to AI Generation Engine Pipeline...');
 
@@ -49,7 +49,10 @@ export default function useCaptionGeneration({ baseFilename, setCurrentLang, set
         if (eventName === 'transcription_start' || eventName === 'translation_start') {
           setMessage(dataVal);
         } else if (eventName === 'transcription_progress') {
-          setTranscribeProgress(parseInt(dataVal, 10));
+          // Whisper's per-segment percentage is derived from segment.end / total_duration,
+          // which truncates to 0 for short early segments in a long video — clamping to
+          // never decrease avoids any visible backward flicker in the progress bar.
+          setTranscribeProgress((prev) => Math.max(prev, parseInt(dataVal, 10)));
         } else if (eventName === 'transcription_complete') {
           setTranscribeProgress(100);
         } else if (eventName === 'translation_progress') {
