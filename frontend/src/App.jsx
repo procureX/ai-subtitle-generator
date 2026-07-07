@@ -1,11 +1,11 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Upload } from 'lucide-react';
 
 // Core UI Workspace Layout Components
 import VideoUpload from './components/VideoUpload';
 import VideoPlayer from './components/VideoPlayer';
 import LanguageSelector from './components/LanguageSelector';
-import CaptionEditor from './components/caption-editor';
+import CaptionEditor from './components/CaptionEditor';
 
 // Modular Progress Meter Component
 import ProgressBar from './components/ProgressBar';
@@ -40,17 +40,27 @@ export default function App() {
     handleTextChange,
     saveCaptionEdits,
     downloadSrt,
-    startBurnIn
+    startBurnIn,
+    subtitleAnotherVideo
   } = useVideoWorkspace();
 
   return (
     <div style={{ fontFamily: 'system-ui, sans-serif', background: '#090d16', color: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
       
       {/* 🎬 HEADER BRANDING BLOCK */}
-      <header style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px', marginBottom: '24px' }}>
+      <header style={{ borderBottom: '1px solid #1e293b', paddingBottom: '16px', marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
         <h1 style={{ margin: 0, fontSize: '26px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800' }}>
           <Sparkles color="#38bdf8" fill="#38bdf8" size={24} /> AI Subtitle Generator
         </h1>
+
+        {aiGenerated && (
+          <button
+            onClick={subtitleAnotherVideo}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#1e293b', color: '#f1f5f9', border: '1px solid #475569', padding: '10px 16px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+          >
+            <Upload size={16} /> Subtitle Another Video
+          </button>
+        )}
       </header>
 
       {/* 🔔 GLOBAL SYSTEM EVENT ALERT NOTIFICATION BANNER */}

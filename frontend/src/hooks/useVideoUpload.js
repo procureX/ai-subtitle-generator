@@ -16,6 +16,18 @@ export default function useVideoUpload({ onUploaded, setMessage }) {
   const [isExtracting, setIsExtracting] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  const resetUpload = () => {
+    // Release the blob URL so the browser can free the underlying memory
+    // instead of holding onto it until the page is fully reloaded.
+    if (videoUrl) URL.revokeObjectURL(videoUrl);
+    setVideoFile(null);
+    setVideoUrl(null);
+    setUploadProgress(0);
+    setFfmpegProgress(0);
+    setIsExtracting(false);
+    setLoading(false);
+  };
+
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -93,5 +105,6 @@ export default function useVideoUpload({ onUploaded, setMessage }) {
     isExtracting,
     loading,
     handleFileUpload,
+    resetUpload,
   };
 }

@@ -39,6 +39,18 @@ export default function useVideoWorkspace() {
 
   const burnIn = useBurnIn({ baseFilename, currentLang, setMessage });
 
+  // Resets the entire workspace back to the initial upload screen so the
+  // person can subtitle another video without refreshing the page.
+  const subtitleAnotherVideo = () => {
+    upload.resetUpload();
+    generation.resetGeneration();
+    captionEditor.resetCaptions();
+    burnIn.resetBurnIn();
+    setBaseFilename('');
+    setCurrentLang('en');
+    setMessage('');
+  };
+
   return {
     videoFile: upload.videoFile,
     videoUrl: upload.videoUrl,
@@ -71,5 +83,6 @@ export default function useVideoWorkspace() {
     saveCaptionEdits: captionEditor.saveCaptionEdits,
     downloadSrt: captionEditor.downloadSrt,
     startBurnIn: burnIn.startBurnIn,
+    subtitleAnotherVideo,
   };
 }

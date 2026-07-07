@@ -12,6 +12,13 @@ export default function useBurnIn({ baseFilename, currentLang, setMessage }) {
   const [burnInStage, setBurnInStage] = useState('');
   const [burnInDownloadUrl, setBurnInDownloadUrl] = useState(null);
 
+  const resetBurnIn = () => {
+    setIsBurning(false);
+    setBurnInProgress(0);
+    setBurnInStage('');
+    setBurnInDownloadUrl(null);
+  };
+
   const startBurnIn = async () => {
     if (!baseFilename || !currentLang) return;
 
@@ -59,5 +66,6 @@ export default function useBurnIn({ baseFilename, currentLang, setMessage }) {
     burnInStage,
     burnInDownloadUrl,
     startBurnIn,
+    resetBurnIn,
   };
 }
