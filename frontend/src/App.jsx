@@ -5,7 +5,7 @@ import { Sparkles, Upload } from 'lucide-react';
 import VideoUpload from './components/VideoUpload';
 import VideoPlayer from './components/VideoPlayer';
 import LanguageSelector from './components/LanguageSelector';
-import CaptionEditor from './components/CaptionEditor';
+import CaptionEditor from './components/caption-editor';
 
 // Modular Progress Meter Component
 import ProgressBar from './components/ProgressBar';
