@@ -35,6 +35,7 @@ def burn_in_captions(filename: str, lang: str):
                 "-vf", build_subtitles_filter(srt_path),
                 "-c:v", "libx264",
                 "-preset", "veryfast",
+                "-pix_fmt", "yuv420p",
                 "-c:a", "copy",
                 "-progress", "pipe:1",
                 "-y", output_path,
